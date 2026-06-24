@@ -1,0 +1,305 @@
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+#wrap{padding:10px 0;font-family:var(--font-sans)}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}
+#hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:6px}
+#hdr h3{font-size:13px;font-weight:500;color:var(--color-text-primary)}
+#leg{display:flex;gap:10px;flex-wrap:wrap}
+.li{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--color-text-secondary)}
+.ld{width:12px;height:12px;border-radius:2px;border:1px solid rgba(0,0,0,0.2)}
+#sel{background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary);border-radius:8px;padding:6px 12px;font-size:12px;color:var(--color-text-secondary);margin-bottom:8px;min-height:32px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+#sel b{color:var(--color-text-primary);font-size:13px}
+#mapbox{position:relative;border:0.5px solid var(--color-border-tertiary);border-radius:8px;overflow:hidden;background:#e8e0cc}
+svg{display:block;width:100%;height:auto}
+.plot{cursor:pointer}
+.plot:hover polygon,.plot:hover rect{opacity:0.82}
+.plot.sel polygon{stroke:#111!important;stroke-width:2.5!important}
+.plbl{font-size:6.5px;font-weight:600;fill:#1a1a1a;text-anchor:middle;dominant-baseline:central;pointer-events:none;font-family:sans-serif}
+.rlbl{font-size:5px;fill:#333;text-anchor:middle;dominant-baseline:central;font-family:sans-serif}
+.zlbl{font-size:5.5px;fill:#155724;text-anchor:middle;dominant-baseline:central;font-family:sans-serif;font-weight:600}
+.albl{font-size:5.5px;fill:#7c4a00;text-anchor:middle;dominant-baseline:central;font-family:sans-serif;font-weight:600}
+#tip{position:absolute;background:var(--color-background-primary);border:0.5px solid var(--color-border-secondary);border-radius:8px;padding:7px 9px;font-size:11px;pointer-events:none;opacity:0;z-index:10;min-width:145px}
+#tip strong{display:block;font-size:12px;margin-bottom:3px;color:var(--color-text-primary)}
+#tip .tr{display:flex;justify-content:space-between;gap:10px;margin-top:2px;color:var(--color-text-secondary)}
+#tip .tv{color:var(--color-text-primary);font-weight:500}
+.sbadge{display:inline-block;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:500;margin-top:3px}
+</style>
+
+<div id="wrap">
+<h2 class="sr-only">Arya Infra residential layout — Mouza Tekadi Chimur — 81 plots interactive map</h2>
+<div id="hdr">
+  <h3>Arya Infra — Residential Layout (Mouza Tekadi, Chimur)</h3>
+  <div id="leg">
+    <div class="li"><div class="ld" style="background:rgba(34,197,94,0.55)"></div>Available</div>
+    <div class="li"><div class="ld" style="background:rgba(234,179,8,0.55)"></div>Reserved</div>
+    <div class="li"><div class="ld" style="background:rgba(239,68,68,0.55)"></div>Booked/Sold</div>
+  </div>
+</div>
+<div id="sel">Click any plot to select &nbsp;→&nbsp; <b id="st">—</b></div>
+<div id="mapbox">
+  <div id="tip"></div>
+  <svg id="sv" viewBox="0 0 420 700" xmlns="http://www.w3.org/2000/svg"></svg>
+</div>
+</div>
+
+<script>
+const S={
+  available:{fill:'rgba(34,197,94,0.48)',stroke:'rgba(22,163,74,0.9)',label:'Available',badge:'background:#d1fae5;color:#065f46'},
+  reserved:{fill:'rgba(234,179,8,0.48)',stroke:'rgba(202,138,4,0.9)',label:'Reserved',badge:'background:#fef9c3;color:#713f12'},
+  booked:{fill:'rgba(239,68,68,0.48)',stroke:'rgba(220,38,38,0.9)',label:'Booked/Sold',badge:'background:#fee2e2;color:#7f1d1d'}
+};
+
+/*
+ * CORRECTED LAYOUT — ViewBox 420 x 700
+ *
+ * KEY FIXES FROM BROCHURE:
+ * 1. Inner block columns 47-38 (x:130-175) and 28-37 (x:175-220) are DIRECTLY
+ *    back-to-back — NO road between them. Road only on outer sides.
+ * 2. Plots 65 & 64 bottom edge is immediately followed by the 9m horizontal road
+ *    — NO extra gap/space between plot bottom and road.
+ *
+ * COLUMN LAYOUT (x positions):
+ *   12m road:       x=0–26
+ *   Col A (81-65):  x=26–70   (outer left, faces 12m road)
+ *   Col B (48-64):  x=70–112  (inner left, faces 9m vertical road)
+ *   9m vert road:   x=112–130
+ *   Open/Amenity:   x=130–200, y=30–296 (top portion only)
+ *   Inner-L (47-38):x=130–175, y=296–510 (starts below open+amenity)
+ *   Inner-R (28-37):x=175–220, y=296–510 (directly adjacent, NO road gap)
+ *   9m vert road:   x=220–240
+ *   Outer-R (27-18):x=240–285, y=296–510
+ *
+ *   Col A & B: 17 plots each, y=30 to y=510 (28px each × 17 = 480px ✓)
+ *   Col A plots: 81,80,79,78,77,76,75,74,73,72,71,70,69,68,67,66,65
+ *   Col B plots: 48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64
+ *   Each plot height = (510-30)/17 = ~28.2px → use 28px, adjust last
+ *
+ *   Inner block plots 47-38 / 28-37: 10 plots each
+ *   y=296 to y=510, each = (510-296)/10 = 21.4px → use 21px + adjust
+ *
+ * HORIZONTAL 9m ROAD: y=510–528 (immediately after plots 65/64 bottom)
+ *
+ * BOTTOM L-SECTION: y=528–690
+ *   Left stack (10,9,8): x=26–90
+ *   Bottom rows (11-17 / 7-1): x=90–285
+ *
+ * 15m ROAD: y=690–700
+ */
+
+const PH = 28; // plot height for main columns A & B
+const startY = 30;
+
+// Column A: plots 81 down to 65 — x=26 to 70
+const colA = [81,80,79,78,77,76,75,74,73,72,71,70,69,68,67,66,65];
+const colAstatus = ['available','reserved','booked','available','reserved','available','booked','available','reserved','booked','available','reserved','available','booked','available','reserved','available'];
+
+// Column B: plots 48 down to 64 — x=70 to 112
+const colB = [48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64];
+const colBstatus = ['booked','available','reserved','booked','available','reserved','available','booked','available','reserved','available','booked','available','reserved','available','booked','available'];
+
+// Inner block: 47-38 (left) and 28-37 (right), directly adjacent, y=296–510
+// 10 plots, each ~21.4px tall
+const IPH = (510-296)/10; // 21.4
+const innerL = [47,46,45,44,43,42,41,40,39,38];
+const innerLstatus = ['available','booked','available','reserved','available','booked','available','reserved','available','booked'];
+const innerR = [28,29,30,31,32,33,34,35,36,37];
+const innerRstatus = ['reserved','available','booked','available','reserved','available','booked','available','reserved','available'];
+
+// Right outer: 27 down to 18, x=240-285, y=296-510
+const outerR = [27,26,25,24,23,22,21,20,19,18];
+const outerRstatus = ['booked','available','reserved','booked','available','reserved','available','booked','available','reserved'];
+
+const plots = [];
+
+// Build Col A
+colA.forEach((id,i)=>{
+  const y = startY + i*PH;
+  const h = (i===colA.length-1)? (510-startY-(colA.length-1)*PH) : PH;
+  plots.push({id, pts:[[26,y],[70,y],[70,y+h],[26,y+h]],
+    dims: id===81?'1/2X(10.32+11.97)X15':id===65?'1/2X(12.76+11.64)X15':'9X15',
+    area: id===81?'167 sqmt':id===65?'183 sqmt':'135 sqmt',
+    type: (id===81||id===65)?'Trapezoidal corner':'Rectangle',
+    s: colAstatus[i], corner:(id===81||id===65), road:'12m'});
+});
+
+// Build Col B
+colB.forEach((id,i)=>{
+  const y = startY + i*PH;
+  const h = (i===colB.length-1)? (510-startY-(colB.length-1)*PH) : PH;
+  plots.push({id, pts:[[70,y],[112,y],[112,y+h],[70,y+h]],
+    dims: id===48?'1/2X(9.00+10.32)X12':id===64?'1/2X(13.66+12.76)X12':'9X12',
+    area: id===48?'116 sqmt':id===64?'159 sqmt':'108 sqmt',
+    type: (id===48||id===64)?'Trapezoidal corner':'Rectangle',
+    s: colBstatus[i], corner:(id===48||id===63||id===64), road:'9m'});
+});
+
+// Build Inner Left (47-38) — x=130-175, directly after 9m road x=112-130
+innerL.forEach((id,i)=>{
+  const y = 296 + i*IPH;
+  const h = (i===innerL.length-1)? (510-296-i*IPH) : IPH;
+  plots.push({id, pts:[[130,y],[175,y],[175,y+h],[130,y+h]],
+    dims: id===38?'1/2X(13.40+12.50)X12':'8X12',
+    area: id===38?'155 sqmt':'96 sqmt',
+    type: id===38?'Trapezoidal':'Rectangle',
+    s: innerLstatus[i], corner:(id===47||id===38), road:'9m'});
+});
+
+// Build Inner Right (28-37) — x=175-220, NO road gap from inner left
+innerR.forEach((id,i)=>{
+  const y = 296 + i*IPH;
+  const h = (i===innerR.length-1)? (510-296-i*IPH) : IPH;
+  plots.push({id, pts:[[175,y],[220,y],[220,y+h],[175,y+h]],
+    dims: id===37?'1/2X(14.29+13.40)X12':'8X12',
+    area: id===37?'166 sqmt':'96 sqmt',
+    type: id===37?'Trapezoidal':'Rectangle',
+    s: innerRstatus[i], corner:(id===28||id===37), road:'9m'});
+});
+
+// Build Right Outer (27-18) — x=240-285
+outerR.forEach((id,i)=>{
+  const y = 296 + i*IPH;
+  const h = (i===outerR.length-1)? (510-296-i*IPH) : IPH;
+  plots.push({id, pts:[[240,y],[285,y],[285,y+h],[240,y+h]],
+    dims: id===18?'1/2X(14.97+15.87)X12':'8X12',
+    area: id===18?'185 sqmt':'96 sqmt',
+    type: (id===27||id===18)?'Trapezoidal corner':'Rectangle',
+    s: outerRstatus[i], corner:(id===27||id===18), road:'9m'});
+});
+
+// BOTTOM SECTION — after 9m road at y=510-528
+// Left stack: plots 10,9,8 — x=26-90, stacked y=528-690
+plots.push({id:10, pts:[[26,528],[90,528],[90,563],[26,563]], dims:'1/2X(16.56+17.25)X9.14', area:'155 sqmt', type:'Trapezoidal corner', s:'booked', corner:true, road:'9m+15m'});
+plots.push({id:9,  pts:[[26,563],[90,563],[90,598],[26,598]], dims:'1/2X(15.88+16.56)X9.14', area:'148 sqmt', type:'Trapezoidal', s:'available', corner:false, road:'15m'});
+plots.push({id:8,  pts:[[26,598],[90,598],[90,690],[26,690]], dims:'1/2X(14.74+15.88)X15.24', area:'233 sqmt', type:'Trapezoidal corner', s:'reserved', corner:true, road:'15m'});
+
+// Bottom top row: 11-17 — x=90 to 285, y=528-563 (upper of two bottom rows)
+const btop = [11,12,13,14,15,16,17];
+const btopS = ['available','booked','reserved','available','booked','available','reserved'];
+const bW = (285-90)/7; // ~27.8px each
+btop.forEach((id,i)=>{
+  const x=90+i*bW, x2=(i===btop.length-1)?285:90+(i+1)*bW;
+  plots.push({id, pts:[[x,528],[x2,528],[x2,563],[x,563]],
+    dims: id===17?'1/2X(10.28+9.14)X15.24':'9.14X15.24',
+    area: id===17?'148 sqmt':'139 sqmt',
+    type: id===17?'Trapezoidal corner':'Rectangle',
+    s: btopS[i], corner:(id===11||id===17), road:'9m'});
+});
+
+// Bottom lower row: 7,6,5,4,3,2,1 — x=90 to 285, y=563-690
+// 1 is rightmost, 7 leftmost
+const bbot = [7,6,5,4,3,2,1];
+const bbotS = ['booked','available','reserved','available','booked','available','reserved'];
+bbot.forEach((id,i)=>{
+  const x=90+i*bW, x2=(i===bbot.length-1)?285:90+(i+1)*bW;
+  plots.push({id, pts:[[x,563],[x2,563],[x2,690],[x,690]],
+    dims: id===1?'1/2X(11.65+10.28)X18.28':id===2||id===3||id===4||id===5||id===6||id===7?'9.14X18.28':'9X12',
+    area: id===1?'200 sqmt':'167 sqmt',
+    type: id===1?'Trapezoidal corner':'Rectangle',
+    s: bbotS[i], corner:(id===7||id===1), road:'15m'});
+});
+
+const svg = document.getElementById('sv');
+
+function mk(tag){return document.createElementNS('http://www.w3.org/2000/svg',tag)}
+function rect(x,y,w,h,fill,op){
+  const r=mk('rect');
+  r.setAttribute('x',x);r.setAttribute('y',y);r.setAttribute('width',w);r.setAttribute('height',h);
+  r.setAttribute('fill',fill);if(op!=null)r.setAttribute('opacity',op);
+  svg.appendChild(r);
+}
+function txt(s,x,y,cls,rot){
+  const t=mk('text');t.setAttribute('x',x);t.setAttribute('y',y);t.setAttribute('class',cls);
+  if(rot)t.setAttribute('transform',`rotate(${rot},${x},${y})`);
+  t.textContent=s;svg.appendChild(t);
+}
+
+function drawBg(){
+  rect(0,0,420,700,'#ddd5b8');
+  rect(0,0,26,700,'#bab4a5');           // 12m road (left)
+  rect(112,0,18,510,'#bab4a5');         // 9m road (vertical, between col B and inner block)
+  rect(220,296,20,214,'#bab4a5');       // 9m road (vertical, between inner-R and outer-R)
+  rect(0,510,420,18,'#bab4a5');         // 9m horizontal road (right after plots 65/64, NO gap)
+  rect(0,690,420,10,'#bab4a5');         // 15m road (bottom)
+
+  // Dashed center lines
+  const dashes=['112,0,18,510','220,296,20,214','0,510,420,18','0,690,420,10'];
+  // Road labels
+  txt('12.00 Mt. Wide Road',13,300,'rlbl',-90);
+  txt('9.00 Mt. Wide Road',120,250,'rlbl',-90);
+  txt('9.00 Mt. Wide Road',229,403,'rlbl',-90);
+  txt('9.00 Mt. Wide Road',210,518,'rlbl');
+  txt('15.00 Mt. Wide Road',210,695,'rlbl');
+
+  // Open Space block — x=130-200, y=30-180 (upper inner area)
+  rect(130,30,70,148,'#c8efc8',0.85);
+  txt('Open',165,95,'zlbl');
+  txt('Space',165,105,'zlbl');
+
+  // Amenity Space — x=130-200, y=180-296
+  rect(130,180,70,116,'#f9e4a0',0.85);
+  txt('Amenity',165,232,'albl');
+  txt('Space',165,244,'albl');
+
+  txt('N ↑',390,20,'rlbl');
+}
+
+function ptsStr(pts){return pts.map(p=>p.join(',')).join(' ')}
+function cx(pts){return pts.reduce((s,p)=>s+p[0],0)/pts.length}
+function cy(pts){return pts.reduce((s,p)=>s+p[1],0)/pts.length}
+
+let selId=null;
+const tip=document.getElementById('tip');
+const stEl=document.getElementById('st');
+const mapbox=document.getElementById('mapbox');
+
+function moveTip(e){
+  const b=mapbox.getBoundingClientRect();
+  let lx=e.clientX-b.left+12,ly=e.clientY-b.top+12;
+  if(lx+155>b.width)lx-=165;
+  if(ly+140>b.height)ly-=150;
+  tip.style.left=lx+'px';tip.style.top=ly+'px';
+}
+
+function showTip(e,p){
+  const s=S[p.s];
+  tip.innerHTML=`<strong>Plot ${p.id}</strong>
+    <div class="tr"><span>Dimensions</span><span class="tv">${p.dims}</span></div>
+    <div class="tr"><span>Area</span><span class="tv">${p.area}</span></div>
+    <div class="tr"><span>Shape</span><span class="tv">${p.type}</span></div>
+    <div class="tr"><span>Road</span><span class="tv">${p.road}</span></div>
+    ${p.corner?'<div class="tr"><span>Feature</span><span class="tv" style="color:#7c3aed">Corner plot</span></div>':''}
+    <span class="sbadge" style="${s.badge}">${s.label}</span>`;
+  tip.style.opacity='1';
+  moveTip(e);
+}
+
+function buildPlot(p){
+  const g=mk('g');g.setAttribute('class','plot');g.dataset.id=p.id;
+  const s=S[p.s];
+  const poly=mk('polygon');
+  poly.setAttribute('points',ptsStr(p.pts));
+  poly.setAttribute('fill',s.fill);
+  poly.setAttribute('stroke',s.stroke);
+  poly.setAttribute('stroke-width',p.corner?'1.6':'1.0');
+  g.appendChild(poly);
+  const lbl=mk('text');
+  lbl.setAttribute('x',cx(p.pts));lbl.setAttribute('y',cy(p.pts));
+  lbl.setAttribute('class','plbl');lbl.textContent=p.id;
+  g.appendChild(lbl);
+  g.addEventListener('mouseenter',e=>showTip(e,p));
+  g.addEventListener('mousemove',moveTip);
+  g.addEventListener('mouseleave',()=>{tip.style.opacity='0'});
+  g.addEventListener('click',()=>{
+    document.querySelectorAll('.plot.sel').forEach(el=>el.classList.remove('sel'));
+    if(selId===p.id){selId=null;stEl.innerHTML='—';return;}
+    selId=p.id;g.classList.add('sel');
+    const sv=S[p.s];
+    stEl.innerHTML=`Plot <b>${p.id}</b> &nbsp;|&nbsp; ${p.area} &nbsp;|&nbsp; ${p.dims} &nbsp;|&nbsp; <span class="sbadge" style="${sv.badge};font-size:11px">${sv.label}</span>`;
+  });
+  return g;
+}
+
+drawBg();
+plots.sort((a,b)=>a.id-b.id).forEach(p=>svg.appendChild(buildPlot(p)));
+</script>
